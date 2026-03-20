@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ePaystub Email Generator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1e2530;
+    --border: #2d3748;
+    --accent: #00d4aa;
+    --accent2: #0099ff;
+    --accent3: #f7c948;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  .container { max-width: 1260px; margin: 0 auto; padding: 36px 24px; position: relative; z-index: 1; }
+
+  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 36px; }
+  .logo {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.5px; }
+  h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .subtitle { font-size: 0.78rem; color: var(--text-muted); font-weight: 300; margin-top: 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+
+  .card-title {
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 18px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title::before { content: ''; display: inline-block; width: 3px; height: 13px; background: var(--accent); border-radius: 2px; }
+
+  /* Paste hint */
+  .paste-hint {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: rgba(0,212,170,0.05); border: 1px dashed rgba(0,212,170,0.28);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;
+    font-size: 0.76rem; color: var(--text-muted); line-height: 1.65;
+  }
+  .paste-hint strong { color: var(--accent); }
+  .kbd { background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text); }
+
+  /* Column paste tips */
+  .col-tips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .col-tip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 12px; font-size: 0.7rem; color: var(--text-muted);
+  }
+  .col-tip .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+
+  thead th {
+    background: var(--surface2); padding: 10px 14px; text-align: left;
+    font-size: 0.67rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-muted);
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+    position: relative;
+  }
+  thead th:first-child { width: 38px; text-align: center; }
+
+  /* Column header paste indicator */
+  thead th.col-active { background: rgba(0,212,170,0.08); }
+  thead th .th-inner { display: flex; align-items: center; gap: 6px; }
+  thead th .th-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.018); }
+  tbody tr.row-selected { background: rgba(0,212,170,0.07); }
+
+  tbody td { padding: 0; vertical-align: middle; }
+  tbody td:first-child { text-align: center; padding: 0 10px; }
+  tbody td input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+  .cell-in {
+    width: 100%; background: transparent; border: none;
+    padding: 9px 14px; color: var(--text);
+    font-family: 'Sora', sans-serif; font-size: 0.8rem; outline: none;
+    transition: background 0.1s;
+  }
+  .cell-in:focus { background: rgba(0,212,170,0.04); }
+
+  /* Per-column colors */
+  .col-name  .cell-in { color: var(--text); }
+  .col-ksn   .cell-in { font-family: 'DM Mono', monospace; color: var(--accent);  font-size: 0.77rem; }
+
+  .col-email .cell-in { color: var(--accent3); font-size: 0.77rem; }
+
+  /* Paste flash animation */
+  @keyframes flash-paste { 0%{background:rgba(0,212,170,0.18)} 100%{background:transparent} }
+  .paste-flash { animation: flash-paste 0.6s ease; }
+
+  .table-footer { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* Two col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+
+  label { display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 5px; font-weight: 500; }
+
+  input[type="text"], textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; color: var(--text);
+    font-family: 'Sora', sans-serif; font-size: 0.8rem; outline: none; transition: border-color 0.2s;
+  }
+  input[type="text"]:focus, textarea:focus { border-color: var(--accent); }
+  textarea { font-family: 'DM Mono', monospace; font-size: 0.75rem; line-height: 1.65; resize: vertical; }
+
+  .field-group { margin-bottom: 14px; }
+
+  .var-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .var-chip {
+    background: rgba(0,153,255,0.1); border: 1px solid rgba(0,153,255,0.25); color: var(--accent2);
+    padding: 3px 10px; border-radius: 20px; font-size: 0.67rem;
+    font-family: 'DM Mono', monospace; cursor: pointer; transition: all 0.15s;
+  }
+  .var-chip:hover { background: rgba(0,153,255,0.2); }
+
+  /* Preview */
+  .preview-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .preview-nav { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-muted); }
+  .nav-btn {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.15s;
+  }
+  .nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .preview-meta { margin-bottom: 12px; display: flex; flex-direction: column; gap: 5px; }
+  .meta-row { font-size: 0.78rem; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+  .meta-label { font-size: 0.66rem; color: var(--text-muted); min-width: 58px; }
+  .meta-val { font-family: 'DM Mono', monospace; font-size: 0.77rem; }
+
+  .preview-box {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px; min-height: 200px; font-size: 0.79rem; line-height: 1.8;
+    white-space: pre-wrap; font-family: 'Sora', sans-serif; color: var(--text);
+    max-height: 420px; overflow-y: auto;
+  }
+  .preview-box .hl { background: rgba(0,212,170,0.13); color: var(--accent); padding: 1px 5px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 0.84em; }
+  .preview-box .lnk { color: var(--accent2); }
+
+  .empty-state { text-align: center; padding: 36px 20px; color: var(--text-muted); }
+  .empty-icon { font-size: 2rem; margin-bottom: 8px; opacity: 0.3; }
+  .empty-text { font-size: 0.78rem; }
+
+  .btn { padding: 9px 18px; border-radius: 8px; border: none; font-family: 'Sora', sans-serif; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.18s; display: inline-flex; align-items: center; gap: 7px; }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), #00b894); color: #000; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(0,212,170,0.28); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm { padding: 6px 12px; font-size: 0.73rem; }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: 0.73rem; padding: 6px 12px; }
+  .btn-ghost:hover { color: #ff6b6b; border-color: #ff6b6b; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.67rem; font-weight: 600; }
+  .badge-info { background: rgba(0,153,255,0.1); color: var(--accent2); border: 1px solid rgba(0,153,255,0.25); }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); padding: 11px 18px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; opacity: 0; transform: translateY(8px); transition: all 0.28s; z-index: 100; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  footer { text-align: center; padding: 28px 24px 20px; position: relative; z-index: 1; }
+
+  @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">📧</div>
+    <div>
+      <h1>e<span>Paystub</span> Email Generator</h1>
+      <div class="subtitle">Kelly Education · Miami-Dade · Substitute Setup Emails</div>
+    </div>
+  </div>
+
+  <!-- Step 1: Table -->
+  <div class="card">
+    <div class="card-title">1 · Paste Candidates from Excel</div>
+
+    <div class="paste-hint">
+      <span style="font-size:1.4rem;flex-shrink:0;">📋</span>
+      <div>
+        <strong>Full rows:</strong> Select rows in Excel → <span class="kbd">Ctrl+C</span> → click anywhere in the table → <span class="kbd">Ctrl+V</span>.<br>
+        <strong>Single column:</strong> Copy just one column from Excel (e.g. all KSN IDs) → click the <strong>header</strong> of that column below → <span class="kbd">Ctrl+V</span>. Each value goes into its own row automatically.
+      </div>
+    </div>
+
+    <!-- Column color legend -->
+    <div class="col-tips">
+      <div class="col-tip"><div class="dot" style="background:#e6edf3;"></div> Talent Name — click header to paste column</div>
+      <div class="col-tip"><div class="dot" style="background:#00d4aa;"></div> KSN ID — click header to paste column</div>
+      <div class="col-tip"><div class="dot" style="background:#f7c948;"></div> Email — click header to paste column</div>
+    </div>
+
+    <div class="table-wrap" id="tableWrap" tabindex="0">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="checkAll" title="Select all" onchange="toggleAllRows(this)"></th>
+            <th id="hdr-name"  class="col-hdr" data-col="name"    style="cursor:pointer;" title="Click then Ctrl+V to paste a whole column">
+              <div class="th-inner"><div class="th-dot" style="background:#e6edf3;opacity:0.5;"></div> Talent Name ⬇</div>
+            </th>
+            <th id="hdr-ksn"   class="col-hdr" data-col="ksn"     style="cursor:pointer;" title="Click then Ctrl+V to paste a whole column">
+              <div class="th-inner"><div class="th-dot" style="background:#00d4aa;"></div> KSN ID ⬇</div>
+            </th>
+            <th id="hdr-email" class="col-hdr" data-col="email"   style="cursor:pointer;" title="Click then Ctrl+V to paste a whole column">
+              <div class="th-inner"><div class="th-dot" style="background:#f7c948;"></div> Email ⬇</div>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="table-footer">
+      <button class="btn btn-secondary btn-sm" onclick="addRow()">+ Add Row</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearTable()">🗑 Clear All</button>
+      <span id="rowBadge" class="badge badge-info" style="display:none;"></span>
+    </div>
+  </div>
+
+  <!-- Steps 2 & 3 -->
+  <div class="two-col">
+
+    <!-- Template -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-title">2 · Edit Template</div>
+      <div class="field-group">
+        <label>Subject line</label>
+        <input type="text" id="subjectEN" value="Action Required: Set Up Your ePaystub Account">
+      </div>
+      <div class="field-group">
+        <label>Email body</label>
+        <textarea id="templateEN" rows="24">Hello {{FIRST_NAME}},
+
+Please follow the steps below to set up your ePaystub account and access your pay stubs electronically.
+
+⚠️ IMPORTANT: This account can only be created AFTER you have received your first payment.
+
+Your ALT ID is: {{KSN}}
+
+Steps to Register:
+
+1. From a desktop or laptop computer (the registration site is not mobile supported), go to:
+   https://ebpp.documentdna.com/kellyus/login.aspx
+
+2. Create your own username and enter the captcha image.
+
+3. Accept the terms and conditions and click NEXT.
+
+4. Enter your ALT ID: {{KSN}}
+
+5. Enter your Social Security Number.
+
+6. Click NEXT.
+
+7. Enter your email address, phone number, and choose your cell phone provider.
+
+8. Choose your communication preferences and then click NEXT.
+
+9. Create your own password and choose a security image.
+
+10. Choose your security question and answer.
+
+11. Click SAVE and sign back into the website with your new login information.
+
+You're done! ✅
+
+Questions / Contact:
+• For payroll-related questions, contact the Employee Service Center at 1-866-KELLY-4U (866-535-5948).
+• For technical questions or issues, contact the Kelly IT Service Desk at 1-800-KELLY-28 (800-535-5928).
+
+Best regards,
+Kelly Education — Miami-Dade Team</textarea>
+      </div>
+      <div class="var-chips">
+        <span style="font-size:0.68rem;color:var(--text-muted);align-self:center;">Insert:</span>
+        <span class="var-chip" onclick="insertVar('{{FIRST_NAME}}')">{{FIRST_NAME}}</span>
+        <span class="var-chip" onclick="insertVar('{{FULL_NAME}}')">{{FULL_NAME}}</span>
+        <span class="var-chip" onclick="insertVar('{{KSN}}')">{{KSN}}</span>
+        <span class="var-chip" onclick="insertVar('{{EMAIL}}')">{{EMAIL}}</span>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="preview-header">
+        <div class="card-title" style="margin-bottom:0;">3 · Preview & Copy</div>
+        <div class="preview-nav">
+          <button class="nav-btn" id="prevBtn" onclick="navigatePreview(-1)" disabled>◀</button>
+          <span id="previewCounter" style="min-width:48px;text-align:center;">0 / 0</span>
+          <button class="nav-btn" id="nextBtn" onclick="navigatePreview(1)" disabled>▶</button>
+        </div>
+      </div>
+
+      <div id="previewEmpty" class="empty-state">
+        <div class="empty-icon">✉️</div>
+        <div class="empty-text">Paste candidates and check the ones you want to preview</div>
+      </div>
+
+      <div id="previewContent" style="display:none;">
+        <div class="preview-meta">
+          <div class="meta-row"><span class="meta-label">NAME</span><span id="prevName" class="meta-val" style="color:var(--text);"></span></div>
+          <div class="meta-row"><span class="meta-label">KSN</span><span id="prevKSN" class="meta-val" style="color:var(--accent);"></span></div>
+          <div class="meta-row"><span class="meta-label">EMAIL</span><span id="prevEmail" class="meta-val" style="color:var(--accent3);"></span></div>
+          <div class="meta-row"><span class="meta-label">SUBJECT</span><span id="prevSubject" style="font-size:0.78rem;font-weight:600;"></span></div>
+        </div>
+        <div class="preview-box" id="previewBox"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="copySubjectBtn" onclick="copySubject()">📋 Copy Subject</button>
+        <button class="btn btn-primary" id="copyBodyBtn" onclick="copyBody()" style="background:linear-gradient(135deg,#0099ff,#0066cc);">📋 Copy Body</button>
+        <button class="btn btn-secondary" id="copyAddrBtn" onclick="copyEmailAddress()" title="Copy just the email address">@ Copy Address</button>
+        <button class="btn btn-secondary" onclick="copyAllEmails()">📑 Copy All (<span id="copyAllCount">0</span>)</button>
+        <button class="btn btn-secondary" onclick="openInMail()">✉️ Open in Mail</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  <span style="font-size:0.7rem;color:#2d3a4a;font-family:'DM Mono',monospace;letter-spacing:0.8px;">
+    made with <span style="color:#e05c7a;">♥</span> by
+    <span style="background:linear-gradient(90deg,#00d4aa,#0099ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-weight:600;">Rodrigo Bermudez</span>
+  </span>
+</footer>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+const FIELDS = ['name','ksn','email'];
+let rows = [];
+let previewIndex = 0;
+let activeColHeader = null; // which column header is "focused" for column-paste
+
+// ── Boot ───────────────────────────────────────────────────
+function boot() {
+  for (let i = 0; i < 6; i++) rows.push(emptyRow());
+  renderTable();
+  setupColumnHeaders();
+}
+function emptyRow() { return { name:'', ksn:'', email:'', selected:false }; }
+
+// ── Column header click → activate for column paste ────────
+function setupColumnHeaders() {
+  document.querySelectorAll('.col-hdr').forEach(th => {
+    th.addEventListener('click', () => {
+      // deactivate previous
+      document.querySelectorAll('.col-hdr').forEach(h => h.classList.remove('col-active'));
+      activeColHeader = th.dataset.col;
+      th.classList.add('col-active');
+      showToast(`📋 Column "${th.dataset.col}" selected — press Ctrl+V to paste`);
+      // focus the tableWrap so keydown paste fires
+      document.getElementById('tableWrap').focus();
+    });
+  });
+}
+
+// ── Render table ───────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (r.selected) tr.classList.add('row-selected');
+    tr.innerHTML = `
+      <td><input type="checkbox" ${r.selected?'checked':''} onchange="toggleRow(${i},this)"></td>
+      <td class="col-name"><input class="cell-in" value="${esc(r.name)}"     placeholder="John Smith"   oninput="rows[${i}].name=this.value;sync()"></td>
+      <td class="col-ksn" ><input class="cell-in" value="${esc(r.ksn)}"      placeholder="25386532"     oninput="rows[${i}].ksn=this.value;sync()"></td>
+      <td class="col-email"><input class="cell-in" value="${esc(r.email)}"   placeholder="email@domain" oninput="rows[${i}].email=this.value;sync()"></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  sync();
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+function toggleRow(i, cb) {
+  rows[i].selected = cb.checked;
+  cb.closest('tr').classList.toggle('row-selected', cb.checked);
+  sync();
+}
+
+function toggleAllRows(masterCb) {
+  rows.forEach((r, i) => {
+    r.selected = masterCb.checked;
+    const trs = document.getElementById('tableBody').rows;
+    if (trs[i]) {
+      trs[i].querySelector('input[type="checkbox"]').checked = masterCb.checked;
+      trs[i].classList.toggle('row-selected', masterCb.checked);
+    }
+  });
+  sync();
+}
+
+function addRow() {
+  rows.push(emptyRow());
+  renderTable();
+  setTimeout(() => {
+    const inputs = document.getElementById('tableBody').querySelectorAll('.cell-in');
+    inputs[inputs.length - 4]?.focus();
+  }, 40);
+}
+
+function clearTable() {
+  if (!confirm('Clear all candidates?')) return;
+  rows = [];
+  for (let i = 0; i < 6; i++) rows.push(emptyRow());
+  document.getElementById('checkAll').checked = false;
+  activeColHeader = null;
+  document.querySelectorAll('.col-hdr').forEach(h => h.classList.remove('col-active'));
+  renderTable();
+}
+
+function sync() { updateBadge(); updatePreview(); }
+
+function updateBadge() {
+  const filled = rows.filter(r => r.name||r.ksn).length;
+  const sel = rows.filter(r => r.selected && (r.name||r.ksn)).length;
+  const badge = document.getElementById('rowBadge');
+  badge.style.display = filled ? 'inline-flex' : 'none';
+  badge.textContent = `${filled} candidate${filled!==1?'s':''} · ${sel} selected`;
+  document.getElementById('copyAllCount').textContent = sel;
+}
+
+// ── Paste handling ─────────────────────────────────────────
+
+// 1. Paste on the tableWrap (when a column header is active → column paste)
+document.getElementById('tableWrap').addEventListener('paste', function(e) {
+  if (activeColHeader) {
+    e.preventDefault();
+    pasteColumn(activeColHeader, e.clipboardData.getData('text'));
+    return;
+  }
+  // no active col header and not in a cell → full row paste
+  if (e.target.classList.contains('cell-in')) return;
+  e.preventDefault();
+  parseFullPaste(e.clipboardData.getData('text'));
+});
+
+// 2. Paste on a cell input — detect multi-row vs single cell
+document.getElementById('tableBody').addEventListener('paste', function(e) {
+  // If a column header is active, do column paste ignoring cell position
+  if (activeColHeader) {
+    e.preventDefault();
+    pasteColumn(activeColHeader, e.clipboardData.getData('text'));
+    return;
+  }
+
+  const text = e.clipboardData.getData('text');
+  const lines = text.trim().split('\n').filter(l => l.trim());
+
+  // Single value → let browser default handle it
+  if (lines.length === 1 && !lines[0].includes('\t')) return;
+
+  e.preventDefault();
+
+  const input = e.target;
+  if (!input.classList.contains('cell-in')) return;
+
+  const tr = input.closest('tr');
+  const td = input.closest('td');
+  const rowIdx = Array.from(document.getElementById('tableBody').rows).indexOf(tr);
+  const colIdx = Array.from(tr.cells).indexOf(td) - 1; // subtract checkbox col
+
+  if (rowIdx < 0) return;
+
+  // Check if it's a single column paste (no tabs) → paste into current column
+  if (!lines[0].includes('\t')) {
+    pasteColumnAt(FIELDS[colIdx], lines, rowIdx);
+    return;
+  }
+
+  // Multi-column paste from current cell
+  while (rows.length < rowIdx + lines.length) rows.push(emptyRow());
+  lines.forEach((line, li) => {
+    const cols = line.split('\t');
+    cols.forEach((val, ci) => {
+      const fi = colIdx + ci;
+      if (fi >= 0 && fi < FIELDS.length) rows[rowIdx + li][FIELDS[fi]] = val.trim();
+    });
+  });
+  renderTable();
+  flashRows(rowIdx, lines.length);
+  showToast(`✓ ${lines.length} row${lines.length!==1?'s':''} pasted`);
+});
+
+// Column paste: fill a specific field from top, growing rows as needed
+function pasteColumn(field, text) {
+  const values = text.trim().split('\n').map(v => v.split('\t')[0].trim()).filter(v => v);
+  pasteColumnAt(field, values, 0);
+}
+
+function pasteColumnAt(field, values, startRow) {
+  while (rows.length < startRow + values.length) rows.push(emptyRow());
+  values.forEach((val, i) => { rows[startRow + i][field] = val; });
+  renderTable();
+  flashRows(startRow, values.length);
+  // Deactivate col header
+  activeColHeader = null;
+  document.querySelectorAll('.col-hdr').forEach(h => h.classList.remove('col-active'));
+  showToast(`✓ ${values.length} value${values.length!==1?'s':''} pasted into "${field}"`);
+}
+
+// Full multi-column row paste
+function parseFullPaste(text) {
+  const lines = text.trim().split('\n');
+  if (!lines.length) return;
+
+  // Detect header
+  const first = lines[0].split('\t').map(c => c.toLowerCase().trim());
+  let data = lines;
+  if (first.some(c => ['talent','name','ksn','email','alt'].some(h => c.includes(h)))) {
+    data = lines.slice(1);
+  }
+
+  const newRows = data
+    .map(line => {
+      const c = line.split('\t');
+      return { name:(c[0]||'').trim(), ksn:(c[1]||'').trim(), email:(c[2]||'').trim(), selected:false };
+    })
+    .filter(r => r.name || r.ksn);
+
+  if (!newRows.length) { showToast('⚠️ No data detected'); return; }
+  rows = newRows;
+  renderTable();
+  showToast(`✓ ${rows.length} candidate${rows.length!==1?'s':''} loaded`);
+}
+
+// Flash animation on newly pasted rows
+function flashRows(start, count) {
+  setTimeout(() => {
+    const trs = document.getElementById('tableBody').rows;
+    for (let i = start; i < start + count && i < trs.length; i++) {
+      trs[i].classList.add('paste-flash');
+      trs[i].addEventListener('animationend', () => trs[i].classList.remove('paste-flash'), { once: true });
+    }
+  }, 50);
+}
+
+// ── Template ───────────────────────────────────────────────
+function insertVar(v) {
+  const ta = document.getElementById('templateEN');
+  const s = ta.selectionStart, e2 = ta.selectionEnd;
+  ta.value = ta.value.substring(0,s) + v + ta.value.substring(e2);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+  updatePreview();
+}
+
+['templateEN','subjectEN'].forEach(id =>
+  document.getElementById(id).addEventListener('input', updatePreview)
+);
+
+// ── Preview ────────────────────────────────────────────────
+function getSelected() { return rows.filter(r => r.selected && (r.name||r.ksn)); }
+
+function generateEmail(r) {
+  const firstName = r.name.split(' ')[0] || r.name;
+  const body = document.getElementById('templateEN').value
+    .replace(/{{FIRST_NAME}}/g, firstName)
+    .replace(/{{FULL_NAME}}/g,  r.name)
+    .replace(/{{KSN}}/g,        r.ksn || '[KSN NOT FOUND]')
+    .replace(/{{EMAIL}}/g,      r.email || '');
+  const subject = document.getElementById('subjectEN').value
+    .replace(/{{FIRST_NAME}}/g, firstName)
+    .replace(/{{FULL_NAME}}/g,  r.name)
+    .replace(/{{KSN}}/g,        r.ksn || '');
+  return { body, subject };
+}
+
+function renderHTML(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\b(\d{6,})\b/g,'<span class="hl">$1</span>')
+    .replace(/(https?:\/\/[^\s]+)/g,'<span class="lnk">$1</span>');
+}
+
+function updatePreview() {
+  const sel = getSelected();
+  const empty = document.getElementById('previewEmpty');
+  const content = document.getElementById('previewContent');
+
+  if (!sel.length) {
+    empty.style.display = 'block'; content.style.display = 'none';
+    document.getElementById('previewCounter').textContent = '0 / 0';
+    document.getElementById('prevBtn').disabled = true;
+    document.getElementById('nextBtn').disabled = true;
+    return;
+  }
+
+  previewIndex = Math.min(previewIndex, sel.length - 1);
+  const r = sel[previewIndex];
+  const { body, subject } = generateEmail(r);
+
+  empty.style.display = 'none'; content.style.display = 'block';
+  document.getElementById('prevName').textContent    = r.name || '—';
+  document.getElementById('prevKSN').textContent     = r.ksn || '—';
+  document.getElementById('prevEmail').textContent   = r.email || '—';
+  document.getElementById('prevSubject').textContent = subject;
+  document.getElementById('previewBox').innerHTML    = renderHTML(body);
+  document.getElementById('previewCounter').textContent = `${previewIndex+1} / ${sel.length}`;
+  document.getElementById('prevBtn').disabled = previewIndex === 0;
+  document.getElementById('nextBtn').disabled = previewIndex === sel.length - 1;
+}
+
+function navigatePreview(dir) {
+  previewIndex = Math.max(0, Math.min(getSelected().length - 1, previewIndex + dir));
+  updatePreview();
+}
+
+function copySubject() {
+  const sel = getSelected();
+  if (!sel.length) { showToast('⚠️ Select a candidate first'); return; }
+  const { subject } = generateEmail(sel[previewIndex]);
+  copyToClipboard(subject, () => {
+    const btn = document.getElementById('copySubjectBtn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    setTimeout(() => btn.innerHTML = orig, 2000);
+    showToast('✓ Subject copied');
+  });
+}
+
+function copyBody() {
+  const sel = getSelected();
+  if (!sel.length) { showToast('⚠️ Select a candidate first'); return; }
+  const { body } = generateEmail(sel[previewIndex]);
+  copyToClipboard(body, () => {
+    const btn = document.getElementById('copyBodyBtn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    setTimeout(() => btn.innerHTML = orig, 2000);
+    showToast('✓ Body copied');
+  });
+}
+
+function copyEmailAddress() {
+  const sel = getSelected();
+  if (!sel.length) { showToast('⚠️ Select a candidate first'); return; }
+  const email = sel[previewIndex].email;
+  if (!email) { showToast('⚠️ No email address for this candidate'); return; }
+  copyToClipboard(email, () => {
+    const btn = document.getElementById('copyAddrBtn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    setTimeout(() => btn.innerHTML = orig, 2000);
+    showToast(`✓ ${email} copied`);
+  });
+}
+
+function copyAllEmails() {
+  const sel = getSelected();
+  if (!sel.length) { showToast('⚠️ Select at least one candidate'); return; }
+  const div = '\n\n' + '─'.repeat(52) + '\n\n';
+  const all = sel.map(r => {
+    const { body, subject } = generateEmail(r);
+    return `=== ${r.name} | KSN: ${r.ksn} ===\nSubject: ${subject}\n\n${body}`;
+  }).join(div);
+  copyToClipboard(all, () => showToast(`✓ ${sel.length} emails copied`));
+}
+
+// Clipboard helper — works both on https and file://
+function copyToClipboard(text, onSuccess) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
+  } else {
+    fallbackCopy(text, onSuccess);
+  }
+}
+
+function fallbackCopy(text, onSuccess) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); onSuccess(); }
+  catch(e) { showToast('⚠️ Could not copy — try Ctrl+C manually'); }
+  document.body.removeChild(ta);
+}
+
+function openInMail() {
+  const sel = getSelected();
+  if (!sel.length) { showToast('⚠️ Select a candidate first'); return; }
+  const r = sel[previewIndex];
+  const { body, subject } = generateEmail(r);
+  window.open(`mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+boot();
+</script>
+</body>
+</html>
